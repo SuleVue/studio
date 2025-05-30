@@ -5,20 +5,24 @@ import { useState, useEffect } from 'react';
 import { Header } from '@/components/layout/Header';
 import { ChatSidebar } from './ChatSidebar';
 import { ChatArea } from './ChatArea';
-import { PanelLeftOpen, PanelRightOpen } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { PanelLeftOpen, PanelRightOpen } from 'lucide-react'; // Keep for Header, but Button itself is removed from here
+import { Button } from '@/components/ui/button'; // Keep for other potential uses, but not for sidebar toggle here
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'; // SheetTrigger removed
 import { useIsMobile } from '@/hooks/use-mobile';
 
 
 export function ChatLayout() {
   const isMobile = useIsMobile();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(!isMobile); // Sidebar open by default on desktop
+  const [isSidebarOpen, setIsSidebarOpen] = useState(!isMobile); 
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
 
   useEffect(() => {
-    // Adjust sidebar visibility based on screen size changes
-    setIsSidebarOpen(!isMobile);
+    if (isMobile) {
+      setIsSidebarOpen(false); // Ensure desktop sidebar is closed on mobile
+    } else {
+      setMobileSheetOpen(false); // Ensure mobile sheet is closed on desktop
+      // setIsSidebarOpen(true); // Re-open desktop sidebar if not mobile, or retain last state
+    }
   }, [isMobile]);
 
   const toggleSidebar = () => {
@@ -38,20 +42,15 @@ export function ChatLayout() {
 
   return (
     <div className="flex flex-col h-screen">
-      <Header />
+      <Header 
+        onMenuButtonClick={toggleSidebar}
+        isSidebarOpen={isMobile ? mobileSheetOpen : isSidebarOpen}
+        showMenuButton={true}
+      />
       <div className="flex flex-1 overflow-hidden relative">
         {isMobile ? (
           <Sheet open={mobileSheetOpen} onOpenChange={setMobileSheetOpen}>
-            <SheetTrigger asChild>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="absolute top-3 left-3 z-10"
-                aria-label="Open chat sessions"
-              >
-                <PanelLeftOpen className="h-5 w-5" />
-              </Button>
-            </SheetTrigger>
+            {/* SheetTrigger is now in Header, Sheet remains to host content */}
             <SheetContent side="left" className="p-0 w-[300px] sm:w-[320px] flex flex-col">
               <SheetHeader className="p-4 border-b">
                 <SheetTitle>Chat Sessions</SheetTitle>
@@ -68,15 +67,7 @@ export function ChatLayout() {
                 <SidebarContent />
               </aside>
             )}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={toggleSidebar}
-              className="absolute top-3 left-3 z-10"
-              aria-label={isSidebarOpen ? "Close chat sessions" : "Open chat sessions"}
-            >
-              {isSidebarOpen ? <PanelRightOpen className="h-5 w-5" /> : <PanelLeftOpen className="h-5 w-5" />}
-            </Button>
+            {/* Desktop toggle button removed from here, it's now in Header */}
           </>
         )}
         <main className="flex-1 flex flex-col overflow-hidden">
@@ -86,4 +77,3 @@ export function ChatLayout() {
     </div>
   );
 }
-
