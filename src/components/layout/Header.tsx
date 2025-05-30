@@ -14,7 +14,7 @@ import { useTheme } from "@/components/providers/ThemeProvider";
 import { useLanguage } from "@/components/providers/LanguageProvider";
 import { APP_NAME } from "@/lib/constants";
 import type { Language } from "@/lib/types";
-import { HelpGuideDialogAm } from './HelpGuideDialogAm'; // Import the new component
+import { HelpGuideDialogAm } from './HelpGuideDialogAm';
 
 export function Header() {
   const { theme, toggleTheme } = useTheme();
