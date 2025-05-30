@@ -39,7 +39,8 @@ export function Header() {
               </span>
             </a>
           </div>
-          <div className="flex flex-1 items-center justify-between space-x-2 md:justify-end">
+          {/* This div acts as a spacer and aligns nav to the right */}
+          <div className="flex flex-1 items-center justify-end space-x-2">
             <nav className="flex items-center">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
