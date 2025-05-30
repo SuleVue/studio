@@ -76,7 +76,7 @@ export function ChatSidebar() {
                 >
                   <MessageSquare className="mr-2 h-4 w-4 flex-shrink-0" />
                   <span className="truncate flex-1 text-left">{session.name}</span>
-                  <div className="ml-auto flex items-center space-x-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                  <div className="ml-auto flex items-center space-x-1">
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button
