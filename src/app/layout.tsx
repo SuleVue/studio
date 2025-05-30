@@ -10,7 +10,7 @@ import { Toaster } from '@/components/ui/toaster';
 // Removed the incorrect function calls for GeistSans and GeistMono
 
 export const metadata: Metadata = {
-  title: 'Tarik Chat',
+  title: 'ተመልካች',
   description: 'Intelligent Chat with Image Understanding',
 };
 

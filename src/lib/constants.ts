@@ -7,4 +7,5 @@ export const LOCAL_STORAGE_LANGUAGE_KEY = "tarikChatLanguage";
 export const MAX_STORED_MESSAGES_PER_SESSION = 30; // Reduced from 50
 export const MAX_MESSAGE_CONTENT_LENGTH_STORAGE = 2000; // New constant for truncating long text
 
-export const APP_NAME = "Tarik Chat";
+export const APP_NAME = "ተመልካች";
+
