@@ -6,7 +6,8 @@ import type { ChatSession, ChatMessage } from '@/lib/types';
 import { 
   DEFAULT_SESSION_NAME, 
   LOCAL_STORAGE_SESSIONS_KEY, 
-  LOCAL_STORAGE_ACTIVE_SESSION_ID_KEY 
+  LOCAL_STORAGE_ACTIVE_SESSION_ID_KEY,
+  MAX_STORED_MESSAGES_PER_SESSION
 } from '@/lib/constants';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -44,6 +45,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         const newSession = createNewSession(DEFAULT_SESSION_NAME);
         loadedSessions = [newSession];
         setActiveSessionId(newSession.id);
+        // Initial save, no need to truncate here as messages are empty
         localStorage.setItem(LOCAL_STORAGE_SESSIONS_KEY, JSON.stringify(loadedSessions));
         localStorage.setItem(LOCAL_STORAGE_ACTIVE_SESSION_ID_KEY, newSession.id);
       } else {
@@ -52,7 +54,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setSessions(loadedSessions);
     } catch (error) {
       console.error("Failed to load sessions from localStorage:", error);
-      // Fallback to a single new session if parsing fails or localStorage is problematic
       const newSession = createNewSession(DEFAULT_SESSION_NAME);
       setSessions([newSession]);
       setActiveSessionId(newSession.id);
@@ -62,9 +63,26 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (mounted) {
-      localStorage.setItem(LOCAL_STORAGE_SESSIONS_KEY, JSON.stringify(sessions));
-      if (activeSessionId) {
-        localStorage.setItem(LOCAL_STORAGE_ACTIVE_SESSION_ID_KEY, activeSessionId);
+      const sessionsToStore = sessions.map(session => {
+        if (session.messages.length > MAX_STORED_MESSAGES_PER_SESSION) {
+          return {
+            ...session,
+            // Keep only the last MAX_STORED_MESSAGES_PER_SESSION messages
+            messages: session.messages.slice(-MAX_STORED_MESSAGES_PER_SESSION), 
+          };
+        }
+        return session;
+      });
+
+      try {
+        localStorage.setItem(LOCAL_STORAGE_SESSIONS_KEY, JSON.stringify(sessionsToStore));
+        if (activeSessionId) {
+          localStorage.setItem(LOCAL_STORAGE_ACTIVE_SESSION_ID_KEY, activeSessionId);
+        }
+      } catch (error) {
+        console.error("Error saving sessions to localStorage:", error);
+        // Potentially notify user or implement more sophisticated error handling like clearing older sessions
+        // For now, logging the error is a good first step.
       }
     }
   }, [sessions, activeSessionId, mounted]);
@@ -82,7 +100,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const createSession = useCallback((name?: string) => {
     const newSession = createNewSession(name);
-    setSessions(prev => [newSession, ...prev]); // Add to the beginning of the list
+    setSessions(prev => [newSession, ...prev]);
     setActiveSessionId(newSession.id);
     return newSession;
   }, []);
@@ -93,7 +111,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       if (activeSessionId === sessionId) {
         setActiveSessionId(updatedSessions.length > 0 ? updatedSessions[0].id : null);
       }
-      return updatedSessions.length > 0 ? updatedSessions : [createNewSession(DEFAULT_SESSION_NAME)]; // Ensure at least one session
+      return updatedSessions.length > 0 ? updatedSessions : [createNewSession(DEFAULT_SESSION_NAME)];
     });
   }, [activeSessionId]);
 
@@ -150,7 +168,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const activeSession = sessions.find(session => session.id === activeSessionId) || null;
   
   if (!mounted) {
-    return null; // Or a loading skeleton
+    return null;
   }
 
   return (
