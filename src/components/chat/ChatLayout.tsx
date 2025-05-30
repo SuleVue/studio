@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -6,7 +7,7 @@ import { ChatSidebar } from './ChatSidebar';
 import { ChatArea } from './ChatArea';
 import { PanelLeftOpen, PanelRightOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 
@@ -51,8 +52,13 @@ export function ChatLayout() {
                 <PanelLeftOpen className="h-5 w-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="p-0 w-[300px] sm:w-[320px]">
-              <SidebarContent />
+            <SheetContent side="left" className="p-0 w-[300px] sm:w-[320px] flex flex-col">
+              <SheetHeader className="p-4 border-b">
+                <SheetTitle>Chat Sessions</SheetTitle>
+              </SheetHeader>
+              <div className="flex-1 overflow-y-auto">
+                <SidebarContent />
+              </div>
             </SheetContent>
           </Sheet>
         ) : (
@@ -80,3 +86,4 @@ export function ChatLayout() {
     </div>
   );
 }
+
