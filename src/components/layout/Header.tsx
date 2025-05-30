@@ -41,10 +41,6 @@ export function Header() {
           </div>
           <div className="flex flex-1 items-center justify-between space-x-2 md:justify-end">
             <nav className="flex items-center">
-              <Button variant="ghost" size="icon" onClick={() => setIsHelpDialogOpen(true)}>
-                <HelpCircle className="h-[1.2rem] w-[1.2rem]" />
-                <span className="sr-only">How to use guide</span>
-              </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon">
@@ -68,6 +64,10 @@ export function Header() {
                   <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
                 )}
                 <span className="sr-only">Toggle theme</span>
+              </Button>
+              <Button variant="ghost" size="icon" onClick={() => setIsHelpDialogOpen(true)}>
+                <HelpCircle className="h-[1.2rem] w-[1.2rem]" />
+                <span className="sr-only">How to use guide</span>
               </Button>
             </nav>
           </div>
