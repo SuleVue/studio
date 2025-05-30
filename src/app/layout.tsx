@@ -1,18 +1,18 @@
 import type { Metadata } from 'next';
-import { GeistSans } from 'next/font/google'; // Corrected import for Geist Sans
-import { GeistMono } from 'next/font/google'; // Corrected import for Geist Mono
+import { GeistSans } from 'geist/font/sans';
+import { GeistMono } from 'geist/font/mono';
 import './globals.css';
 import { ThemeProvider } from '@/components/providers/ThemeProvider';
 import { LanguageProvider } from '@/components/providers/LanguageProvider';
 import { SessionProvider } from '@/components/providers/SessionProvider';
 import { Toaster } from '@/components/ui/toaster';
 
-const geistSans = GeistSans({ // Corrected instantiation
+const geistSans = GeistSans({
   variable: '--font-geist-sans',
   subsets: ['latin'],
 });
 
-const geistMono = GeistMono({ // Corrected instantiation
+const geistMono = GeistMono({
   variable: '--font-geist-mono',
   subsets: ['latin'],
 });
