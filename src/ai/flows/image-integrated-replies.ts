@@ -38,7 +38,7 @@ const prompt = ai.definePrompt({
   name: 'imageIntegratedReplyPrompt',
   input: {schema: ImageIntegratedReplyInputSchema},
   output: {schema: ImageIntegratedReplyOutputSchema},
-  prompt: `You are an AI assistant engaged in a conversation. Generate a relevant and informative reply to the user's message, taking into account the chat history. Do not include images in your response.
+  prompt: `You are an AI assistant engaged in a conversation. Generate a relevant, detailed, comprehensive, and informative reply to the user's message, taking into account the chat history. Do not include images in your response.
 
 Chat History:
 {{#each chatHistory}}
