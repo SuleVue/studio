@@ -1,5 +1,7 @@
+
 "use client";
 
+import type { KeyboardEvent } from 'react';
 import { useState } from 'react';
 import { PlusCircle, Edit3, Trash2, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -49,13 +51,28 @@ export function ChatSidebar() {
           <ul className="space-y-1">
             {sessions.map((session) => (
               <li key={session.id}>
-                <Button
-                  variant={activeSessionId === session.id ? 'secondary' : 'ghost'}
+                <div
+                  role="button"
+                  tabIndex={0}
                   className={cn(
-                    "w-full justify-start items-center h-10 px-3 group",
-                    activeSessionId === session.id ? 'bg-sidebar-accent text-sidebar-accent-foreground' : 'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+                    // Base button structural classes (excluding color variants from buttonVariants)
+                    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+                    // Our specific layout, sizing, and default text color for sidebar items
+                    "w-full justify-start h-10 px-3 group text-sidebar-foreground",
+                    // SVG styling for icons inside this custom "button"
+                    "[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+                    // Conditional styling for active/hover, using sidebar specific colors
+                    activeSessionId === session.id
+                      ? 'bg-sidebar-accent text-sidebar-accent-foreground' // Active state
+                      : 'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground' // Hover state for inactive items
                   )}
                   onClick={() => switchSession(session.id)}
+                  onKeyDown={(e: KeyboardEvent<HTMLDivElement>) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      switchSession(session.id);
+                    }
+                  }}
                 >
                   <MessageSquare className="mr-2 h-4 w-4 flex-shrink-0" />
                   <span className="truncate flex-1 text-left">{session.name}</span>
@@ -89,7 +106,7 @@ export function ChatSidebar() {
                       <TooltipContent side="top"><p>Delete</p></TooltipContent>
                     </Tooltip>
                   </div>
-                </Button>
+                </div>
               </li>
             ))}
           </ul>
