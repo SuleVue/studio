@@ -1,3 +1,4 @@
+
 export type MessageRole = 'user' | 'ai' | 'system';
 
 export type ChatMessage = {
@@ -6,7 +7,7 @@ export type ChatMessage = {
   content: string;
   imageUrl?: string; // URL for images displayed in chat
   imageUrls?: string[]; // For AI messages that might include multiple images
-  timestamp: number;
+  timestamp: number; // Should be a server timestamp in Firestore, number for client
   isLoading?: boolean; // For AI messages that are being generated
 };
 
@@ -14,8 +15,9 @@ export type ChatSession = {
   id: string;
   name: string;
   messages: ChatMessage[];
-  createdAt: number;
-  updatedAt: number;
+  createdAt: number; // Should be a server timestamp in Firestore, number for client
+  updatedAt: number; // Should be a server timestamp in Firestore, number for client
+  userId?: string; // To associate with a user
 };
 
 export type Language = 'English' | 'Amharic';
@@ -26,3 +28,10 @@ export type AIMessage = {
   content: string;
   mediaUrl?: string;
 };
+
+export interface User {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  country?: string;
+}

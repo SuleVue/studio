@@ -5,23 +5,25 @@ import { useState, useEffect } from 'react';
 import { Header } from '@/components/layout/Header';
 import { ChatSidebar } from './ChatSidebar';
 import { ChatArea } from './ChatArea';
-import { PanelLeftOpen, PanelRightOpen } from 'lucide-react'; // Keep for Header, but Button itself is removed from here
-import { Button } from '@/components/ui/button'; // Keep for other potential uses, but not for sidebar toggle here
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'; // SheetTrigger removed
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/use-mobile';
-
+import { useAuth } from '@/components/providers/AuthProvider';
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
+import { Loader2 } from 'lucide-react';
 
 export function ChatLayout() {
   const isMobile = useIsMobile();
+  const { currentUser, loading: authLoading } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(!isMobile); 
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
 
   useEffect(() => {
     if (isMobile) {
-      setIsSidebarOpen(false); // Ensure desktop sidebar is closed on mobile
+      setIsSidebarOpen(false); 
     } else {
-      setMobileSheetOpen(false); // Ensure mobile sheet is closed on desktop
-      // setIsSidebarOpen(true); // Re-open desktop sidebar if not mobile, or retain last state
+      setMobileSheetOpen(false);
+      // setIsSidebarOpen(true); // Or retain last state if preferred
     }
   }, [isMobile]);
 
@@ -39,6 +41,34 @@ export function ChatLayout() {
     </div>
   );
 
+  if (authLoading) {
+    return (
+      <div className="flex flex-col h-screen items-center justify-center">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="mt-4 text-muted-foreground">Loading your experience...</p>
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    return (
+      <div className="flex flex-col h-screen">
+         <Header showMenuButton={false} />
+        <div className="flex-1 flex flex-col items-center justify-center bg-background text-center p-4">
+          <h2 className="text-2xl font-semibold mb-2">Welcome to ተመልካች</h2>
+          <p className="text-muted-foreground mb-6">Please log in or register to start chatting.</p>
+          <div className="space-x-4">
+            <Button asChild>
+              <Link href="/login">Log In</Link>
+            </Button>
+            <Button variant="outline" asChild>
+              <Link href="/register">Register</Link>
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-screen">
@@ -50,7 +80,6 @@ export function ChatLayout() {
       <div className="flex flex-1 overflow-hidden relative">
         {isMobile ? (
           <Sheet open={mobileSheetOpen} onOpenChange={setMobileSheetOpen}>
-            {/* SheetTrigger is now in Header, Sheet remains to host content */}
             <SheetContent side="left" className="p-0 w-[300px] sm:w-[320px] flex flex-col">
               <SheetHeader className="p-4 border-b">
                 <SheetTitle>Chat Sessions</SheetTitle>
@@ -67,7 +96,6 @@ export function ChatLayout() {
                 <SidebarContent />
               </aside>
             )}
-            {/* Desktop toggle button removed from here, it's now in Header */}
           </>
         )}
         <main className="flex-1 flex flex-col overflow-hidden">

@@ -6,25 +6,40 @@ import { createContext, useContext, useEffect, useState, useCallback } from 'rea
 import type { ChatSession, ChatMessage } from '@/lib/types';
 import { 
   DEFAULT_SESSION_NAME, 
-  LOCAL_STORAGE_SESSIONS_KEY, 
-  LOCAL_STORAGE_ACTIVE_SESSION_ID_KEY,
   MAX_STORED_MESSAGES_PER_SESSION,
-  MAX_MESSAGE_CONTENT_LENGTH_STORAGE // Import new constant
+  MAX_MESSAGE_CONTENT_LENGTH_STORAGE
 } from '@/lib/constants';
 import { v4 as uuidv4 } from 'uuid';
-// Removed useToast import as it's not used for now to keep changes minimal
+import { useAuth } from './AuthProvider';
+import { db } from '@/lib/firebase';
+import { 
+  collection, 
+  doc, 
+  getDocs, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  orderBy, 
+  query, 
+  serverTimestamp,
+  Timestamp,
+  writeBatch,
+  limit
+} from 'firebase/firestore';
+import { useToast } from '@/hooks/use-toast';
 
 interface SessionContextType {
   sessions: ChatSession[];
   activeSessionId: string | null;
   activeSession: ChatSession | null;
-  createSession: (name?: string) => ChatSession;
-  deleteSession: (sessionId: string) => void;
-  renameSession: (sessionId: string, newName: string) => void;
+  createSession: (name?: string) => Promise<ChatSession | null>;
+  deleteSession: (sessionId: string) => Promise<void>;
+  renameSession: (sessionId: string, newName: string) => Promise<void>;
   switchSession: (sessionId: string) => void;
-  addMessageToSession: (sessionId: string, message: ChatMessage) => void;
-  updateMessageInSession: (sessionId: string, messageId: string, updatedMessageData: Partial<ChatMessage>) => void;
-  clearActiveSessionMessages: () => void;
+  addMessageToSession: (sessionId: string, message: ChatMessage) => Promise<void>;
+  updateMessageInSession: (sessionId: string, messageId: string, updatedMessageData: Partial<ChatMessage>) => Promise<void>;
+  clearActiveSessionMessages: () => Promise<void>;
+  isLoadingSessions: boolean;
 }
 
 const SessionContext = createContext<SessionContextType | undefined>(undefined);
@@ -32,215 +47,317 @@ const SessionContext = createContext<SessionContextType | undefined>(undefined);
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const [mounted, setMounted] = useState(false);
+  const [isLoadingSessions, setIsLoadingSessions] = useState(true);
+  const { currentUser, loading: authLoading } = useAuth();
+  const { toast } = useToast();
 
+  const getSessionsCollectionRef = useCallback(() => {
+    if (!currentUser) return null;
+    return collection(db, 'users', currentUser.uid, 'sessions');
+  }, [currentUser]);
+
+  // Function to prepare messages for Firestore storage
+  const prepareMessagesForStorage = (messages: ChatMessage[]): ChatMessage[] => {
+    const processedMessages = messages.map(message => {
+      const messageCopy = { ...message };
+      if (messageCopy.imageUrl && messageCopy.imageUrl.startsWith('data:')) {
+        messageCopy.imageUrl = undefined; // Scrub Data URIs
+      }
+      if (messageCopy.imageUrls) {
+        messageCopy.imageUrls = messageCopy.imageUrls
+            .map(url => (typeof url === 'string' && url.startsWith('data:')) ? undefined : url)
+            .filter(url => url !== undefined) as string[] | undefined;
+        if (messageCopy.imageUrls && messageCopy.imageUrls.length === 0) {
+            messageCopy.imageUrls = undefined;
+        }
+      }
+      if (messageCopy.content && messageCopy.content.length > MAX_MESSAGE_CONTENT_LENGTH_STORAGE) {
+        messageCopy.content = messageCopy.content.substring(0, MAX_MESSAGE_CONTENT_LENGTH_STORAGE) + "... (truncated)";
+      }
+      // Convert client-side number timestamp to Firestore Timestamp for new messages if needed
+      // For existing messages from Firestore, they will already be Timestamps or converted on fetch
+      if (typeof messageCopy.timestamp === 'number') {
+         // messageCopy.timestamp = Timestamp.fromMillis(messageCopy.timestamp);
+      }
+      return messageCopy;
+    });
+  
+    return processedMessages.length > MAX_STORED_MESSAGES_PER_SESSION
+      ? processedMessages.slice(-MAX_STORED_MESSAGES_PER_SESSION)
+      : processedMessages;
+  };
+  
+  // Fetch sessions from Firestore
   useEffect(() => {
-    try {
-      const storedSessions = localStorage.getItem(LOCAL_STORAGE_SESSIONS_KEY);
-      const storedActiveId = localStorage.getItem(LOCAL_STORAGE_ACTIVE_SESSION_ID_KEY);
-      
-      let loadedSessions: ChatSession[] = [];
-      if (storedSessions) {
-        loadedSessions = JSON.parse(storedSessions);
-      }
-
-      if (loadedSessions.length === 0) {
-        const newSession = createNewSession(DEFAULT_SESSION_NAME);
-        loadedSessions = [newSession];
-        setActiveSessionId(newSession.id);
-        // Initial save, no need to scrub/truncate here as messages are empty
-        localStorage.setItem(LOCAL_STORAGE_SESSIONS_KEY, JSON.stringify(loadedSessions));
-        localStorage.setItem(LOCAL_STORAGE_ACTIVE_SESSION_ID_KEY, newSession.id);
-      } else {
-        setActiveSessionId(storedActiveId && loadedSessions.some(s => s.id === storedActiveId) ? storedActiveId : loadedSessions[0].id);
-      }
-      setSessions(loadedSessions);
-    } catch (error) {
-      console.error("Failed to load sessions from localStorage:", error);
-      // Fallback to a single new session if loading fails
-      const newSession = createNewSession(DEFAULT_SESSION_NAME);
-      setSessions([newSession]);
-      setActiveSessionId(newSession.id);
+    if (authLoading) {
+      setIsLoadingSessions(true);
+      return;
     }
-    setMounted(true);
-  }, []); // createNewSession is stable, no need to add to deps
+    if (!currentUser) {
+      setSessions([]);
+      setActiveSessionId(null);
+      setIsLoadingSessions(false);
+      return;
+    }
 
-  useEffect(() => {
-    if (mounted) {
-      const sessionsToStore = sessions.map(session => {
-        // 1. Process messages: scrub Data URIs and truncate long content
-        const processedMessages = session.messages.map(message => {
-          const messageCopy = { ...message }; // Shallow copy to avoid mutating live state
+    setIsLoadingSessions(true);
+    const sessionsColRef = getSessionsCollectionRef();
+    if (!sessionsColRef) {
+        setIsLoadingSessions(false);
+        return;
+    }
 
-          // Scrub imageUrl if it's a data URI
-          if (messageCopy.imageUrl && messageCopy.imageUrl.startsWith('data:')) {
-            messageCopy.imageUrl = undefined;
-          }
-
-          // Scrub imageUrls if they contain data URIs
-          if (messageCopy.imageUrls && messageCopy.imageUrls.some(url => typeof url === 'string' && url.startsWith('data:'))) {
-            messageCopy.imageUrls = messageCopy.imageUrls
-              .map(url => (typeof url === 'string' && url.startsWith('data:')) ? undefined : url)
-              .filter(url => url !== undefined) as string[] | undefined;
-            if (messageCopy.imageUrls && messageCopy.imageUrls.length === 0) {
-              messageCopy.imageUrls = undefined;
-            }
-          }
-          
-          // Truncate long content
-          if (messageCopy.content && messageCopy.content.length > MAX_MESSAGE_CONTENT_LENGTH_STORAGE) {
-            messageCopy.content = messageCopy.content.substring(0, MAX_MESSAGE_CONTENT_LENGTH_STORAGE) + "... (truncated)";
-          }
-          
-          return messageCopy;
-        });
-
-        // 2. Truncate the array of processed messages if it's too long
-        const finalMessagesForSession = processedMessages.length > MAX_STORED_MESSAGES_PER_SESSION
-          ? processedMessages.slice(-MAX_STORED_MESSAGES_PER_SESSION)
-          : processedMessages;
-
+    const q = query(sessionsColRef, orderBy('updatedAt', 'desc'));
+    getDocs(q).then(async (snapshot) => {
+      let loadedSessions: ChatSession[] = snapshot.docs.map(docSnap => {
+        const data = docSnap.data();
         return {
-          ...session,
-          messages: finalMessagesForSession,
-        };
+          id: docSnap.id,
+          name: data.name,
+          messages: data.messages.map((msg: any) => ({
+            ...msg,
+            timestamp: msg.timestamp instanceof Timestamp ? msg.timestamp.toMillis() : msg.timestamp,
+          })),
+          createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toMillis() : data.createdAt,
+          updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toMillis() : data.updatedAt,
+          userId: data.userId,
+        } as ChatSession;
       });
 
-      try {
-        localStorage.setItem(LOCAL_STORAGE_SESSIONS_KEY, JSON.stringify(sessionsToStore));
-        if (activeSessionId) {
-          localStorage.setItem(LOCAL_STORAGE_ACTIVE_SESSION_ID_KEY, activeSessionId);
+      if (loadedSessions.length === 0) {
+        const newSession = await createSessionInternal(DEFAULT_SESSION_NAME);
+        if (newSession) {
+          loadedSessions = [newSession];
         }
-      } catch (error) {
-        console.error("Error saving sessions to localStorage:", error);
-        // Potentially notify user or implement more sophisticated error handling
-        // For example, using useToast hook if integrated:
-        // toast({
-        //   title: "Storage Warning",
-        //   description: "Could not save all chat data. Some older messages or sessions might be lost if storage is full.",
-        //   variant: "destructive",
-        // });
       }
-    }
-  }, [sessions, activeSessionId, mounted]);
+      
+      setSessions(loadedSessions);
+      if (loadedSessions.length > 0) {
+        // Try to keep active session or default to first
+        const lastActiveId = localStorage.getItem(`tarikChatActiveSessionId_${currentUser.uid}`);
+        if (lastActiveId && loadedSessions.some(s => s.id === lastActiveId)) {
+          setActiveSessionId(lastActiveId);
+        } else {
+          setActiveSessionId(loadedSessions[0].id);
+        }
+      } else {
+        setActiveSessionId(null);
+      }
+      setIsLoadingSessions(false);
+    }).catch(error => {
+      console.error("Error fetching sessions:", error);
+      toast({ title: "Error", description: "Could not load your chat sessions.", variant: "destructive" });
+      setIsLoadingSessions(false);
+    });
 
-  const createNewSession = (name?: string): ChatSession => {
-    const now = Date.now();
-    return {
-      id: uuidv4(),
+  }, [currentUser, authLoading, toast]); // Removed getSessionsCollectionRef from deps as it depends on currentUser
+
+  // Save active session ID to localStorage
+  useEffect(() => {
+    if (currentUser && activeSessionId) {
+      localStorage.setItem(`tarikChatActiveSessionId_${currentUser.uid}`, activeSessionId);
+    }
+  }, [activeSessionId, currentUser]);
+
+
+  const createSessionInternal = async (name?: string): Promise<ChatSession | null> => {
+    if (!currentUser) return null;
+    const sessionsColRef = getSessionsCollectionRef();
+    if (!sessionsColRef) return null;
+
+    const now = serverTimestamp();
+    const newSessionData = {
       name: name || DEFAULT_SESSION_NAME,
       messages: [],
       createdAt: now,
       updatedAt: now,
+      userId: currentUser.uid,
     };
+    try {
+      const docRef = await addDoc(sessionsColRef, newSessionData);
+      const createdSession: ChatSession = {
+        ...newSessionData,
+        id: docRef.id,
+        createdAt: Date.now(), // Approximate client time, Firestore will have server time
+        updatedAt: Date.now(),
+        messages: [], // Ensure messages is an empty array
+      };
+      setSessions(prev => [createdSession, ...prev].sort((a,b) => b.updatedAt - a.updatedAt));
+      setActiveSessionId(createdSession.id);
+      return createdSession;
+    } catch (error) {
+      console.error("Error creating session in Firestore:", error);
+      toast({ title: "Error", description: "Failed to create new session.", variant: "destructive" });
+      return null;
+    }
   };
+  
+  const createSession = useCallback(createSessionInternal, [currentUser, getSessionsCollectionRef, toast]);
 
-  const createSession = useCallback((name?: string) => {
-    const newSession = createNewSession(name);
-    setSessions(prev => [newSession, ...prev].sort((a, b) => b.updatedAt - a.updatedAt)); // Keep sorted
-    setActiveSessionId(newSession.id);
-    return newSession;
-  }, []);
 
-  const deleteSession = useCallback((sessionId: string) => {
-    setSessions(prev => {
-      const updatedSessions = prev.filter(session => session.id !== sessionId);
-      if (activeSessionId === sessionId) {
-        // Switch to the most recently updated session or null if no sessions left (then create one)
-        const sortedSessions = updatedSessions.sort((a, b) => b.updatedAt - a.updatedAt);
-        setActiveSessionId(sortedSessions.length > 0 ? sortedSessions[0].id : null);
-      }
-      // If all sessions are deleted, create a new default one
-      return updatedSessions.length > 0 ? updatedSessions : [createNewSession(DEFAULT_SESSION_NAME)];
-    });
-  }, [activeSessionId]);
+  const deleteSession = useCallback(async (sessionId: string) => {
+    if (!currentUser) return;
+    const sessionsColRef = getSessionsCollectionRef();
+    if (!sessionsColRef) return;
 
-  const renameSession = useCallback((sessionId: string, newName: string) => {
-    setSessions(prev =>
-      prev.map(session =>
-        session.id === sessionId ? { ...session, name: newName, updatedAt: Date.now() } : session
-      ).sort((a,b) => b.updatedAt - a.updatedAt) // Re-sort after update
-    );
-  }, []);
+    const sessionDocRef = doc(sessionsColRef, sessionId);
+    try {
+      await deleteDoc(sessionDocRef);
+      setSessions(prev => {
+        const updatedSessions = prev.filter(session => session.id !== sessionId);
+        if (activeSessionId === sessionId) {
+          const sortedSessions = updatedSessions.sort((a, b) => b.updatedAt - a.updatedAt);
+          setActiveSessionId(sortedSessions.length > 0 ? sortedSessions[0].id : null);
+           if (sortedSessions.length === 0) {
+            // If all sessions are deleted, create a new default one
+            createSessionInternal(DEFAULT_SESSION_NAME);
+          }
+        }
+        return updatedSessions;
+      });
+      toast({ title: "Session Deleted", description: "The chat session has been deleted." });
+    } catch (error) {
+      console.error("Error deleting session:", error);
+      toast({ title: "Error", description: "Failed to delete session.", variant: "destructive" });
+    }
+  }, [currentUser, activeSessionId, getSessionsCollectionRef, toast]);
+
+  const renameSession = useCallback(async (sessionId: string, newName: string) => {
+    if (!currentUser) return;
+    const sessionsColRef = getSessionsCollectionRef();
+    if (!sessionsColRef) return;
+    
+    const sessionDocRef = doc(sessionsColRef, sessionId);
+    try {
+      await updateDoc(sessionDocRef, { name: newName, updatedAt: serverTimestamp() });
+      setSessions(prev =>
+        prev.map(session =>
+          session.id === sessionId ? { ...session, name: newName, updatedAt: Date.now() } : session
+        ).sort((a,b) => b.updatedAt - a.updatedAt)
+      );
+      toast({ title: "Session Renamed", description: `Session name updated to "${newName}".` });
+    } catch (error) {
+      console.error("Error renaming session:", error);
+      toast({ title: "Error", description: "Failed to rename session.", variant: "destructive" });
+    }
+  }, [currentUser, getSessionsCollectionRef, toast]);
 
   const switchSession = useCallback((sessionId: string) => {
     setActiveSessionId(sessionId);
-    // Bring switched session to top by updating its timestamp (optional, but common UX)
-    // setSessions(prev => prev.map(s => s.id === sessionId ? {...s, updatedAt: Date.now()} : s).sort((a,b) => b.updatedAt - a.updatedAt));
   }, []);
 
-  const addMessageToSession = useCallback((sessionId: string, message: ChatMessage) => {
-    setSessions(prev =>
-      prev.map(session =>
-        session.id === sessionId
-          ? { ...session, messages: [...session.messages, message], updatedAt: Date.now() }
-          : session
-      ).sort((a,b) => b.updatedAt - a.updatedAt) // Re-sort after update
-    );
-  }, []);
+  const addMessageToSession = useCallback(async (sessionId: string, message: ChatMessage) => {
+    if (!currentUser) return;
+    const sessionsColRef = getSessionsCollectionRef();
+    if (!sessionsColRef) return;
+
+    const sessionDocRef = doc(sessionsColRef, sessionId);
+    
+    setSessions(prev => {
+      const sessionIndex = prev.findIndex(s => s.id === sessionId);
+      if (sessionIndex === -1) return prev;
+      
+      const currentSession = prev[sessionIndex];
+      let updatedMessages = [...currentSession.messages, message];
+      
+      // Apply storage preparation rules to the full message list before saving to state and firestore
+      const messagesForStorage = prepareMessagesForStorage(updatedMessages);
+      
+      const updatedSession = {
+        ...currentSession,
+        messages: messagesForStorage, // Use the potentially truncated/scrubbed list for state
+        updatedAt: Date.now()
+      };
+
+      // Update Firestore with the prepared messages (which might be further transformed for Firestore e.g. serverTimestamp)
+      // Note: `prepareMessagesForStorage` is client-side. We need to be careful with `serverTimestamp`
+      // For messages, timestamp is usually client-generated or a converted Firestore timestamp.
+      const firestoreMessages = messagesForStorage.map(m => ({
+        ...m,
+        // Ensure timestamp is a Firestore Timestamp if it's new, or keep as is if from Firestore
+        timestamp: m.timestamp instanceof Timestamp ? m.timestamp : (typeof m.timestamp === 'number' ? Timestamp.fromMillis(m.timestamp) : serverTimestamp())
+      }));
+
+      updateDoc(sessionDocRef, { 
+        messages: firestoreMessages, 
+        updatedAt: serverTimestamp() 
+      }).catch(error => {
+        console.error("Error adding message to session:", error);
+        toast({ title: "Error", description: "Failed to save message.", variant: "destructive" });
+      });
+      
+      const newSessions = [...prev];
+      newSessions[sessionIndex] = updatedSession;
+      return newSessions.sort((a,b) => b.updatedAt - a.updatedAt);
+    });
+  }, [currentUser, getSessionsCollectionRef, toast]);
   
-  const updateMessageInSession = useCallback((sessionId: string, messageId: string, updatedMessageData: Partial<ChatMessage>) => {
-    setSessions(prev =>
-      prev.map(session =>
-        session.id === sessionId
-          ? {
-              ...session,
-              messages: session.messages.map(msg =>
-                msg.id === messageId ? { ...msg, ...updatedMessageData, updatedAt: Date.now() } : msg
-              ),
-              updatedAt: Date.now(),
-            }
-          : session
-      ).sort((a,b) => b.updatedAt - a.updatedAt) // Re-sort after update
-    );
-  }, []);
+  const updateMessageInSession = useCallback(async (sessionId: string, messageId: string, updatedMessageData: Partial<ChatMessage>) => {
+    if (!currentUser) return;
+    const sessionsColRef = getSessionsCollectionRef();
+    if (!sessionsColRef) return;
 
-  const clearActiveSessionMessages = useCallback(() => {
-    if (activeSessionId) {
+    const sessionDocRef = doc(sessionsColRef, sessionId);
+
+    setSessions(prev => {
+        const sessionIndex = prev.findIndex(s => s.id === sessionId);
+        if (sessionIndex === -1) return prev;
+
+        const currentSession = prev[sessionIndex];
+        let newMessagesArray = currentSession.messages.map(msg =>
+            msg.id === messageId ? { ...msg, ...updatedMessageData, updatedAt: Date.now() } : msg
+        );
+        
+        const messagesForStorage = prepareMessagesForStorage(newMessagesArray);
+
+        const firestoreMessages = messagesForStorage.map(m => ({
+            ...m,
+            timestamp: m.timestamp instanceof Timestamp ? m.timestamp : (typeof m.timestamp === 'number' ? Timestamp.fromMillis(m.timestamp) : serverTimestamp())
+        }));
+        
+        updateDoc(sessionDocRef, { 
+            messages: firestoreMessages, 
+            updatedAt: serverTimestamp() 
+        }).catch(error => {
+            console.error("Error updating message in session:", error);
+            toast({ title: "Error", description: "Failed to update message.", variant: "destructive" });
+        });
+
+        const updatedSession = {
+            ...currentSession,
+            messages: messagesForStorage,
+            updatedAt: Date.now()
+        };
+        const newSessions = [...prev];
+        newSessions[sessionIndex] = updatedSession;
+        return newSessions.sort((a,b) => b.updatedAt - a.updatedAt);
+    });
+  }, [currentUser, getSessionsCollectionRef, toast]);
+
+  const clearActiveSessionMessages = useCallback(async () => {
+    if (!currentUser || !activeSessionId) return;
+    const sessionsColRef = getSessionsCollectionRef();
+    if (!sessionsColRef) return;
+
+    const sessionDocRef = doc(sessionsColRef, activeSessionId);
+    try {
+      await updateDoc(sessionDocRef, { messages: [], updatedAt: serverTimestamp() });
       setSessions(prev =>
         prev.map(session =>
           session.id === activeSessionId
             ? { ...session, messages: [], updatedAt: Date.now() }
             : session
-        ).sort((a,b) => b.updatedAt - a.updatedAt) // Re-sort after update
+        ).sort((a,b) => b.updatedAt - a.updatedAt)
       );
+      toast({ title: "Messages Cleared", description: "All messages in this session have been cleared." });
+    } catch (error) {
+      console.error("Error clearing messages:", error);
+      toast({ title: "Error", description: "Failed to clear messages.", variant: "destructive" });
     }
-  }, [activeSessionId]);
+  }, [currentUser, activeSessionId, getSessionsCollectionRef, toast]);
 
-  const activeSession = sessions.find(session => session.id === activeSessionId) || (sessions.length > 0 ? sessions[0] : null);
+  const activeSession = sessions.find(session => session.id === activeSessionId) || null;
   
-  // Ensure sessions are sorted by updatedAt initially and after operations
-  useEffect(() => {
-    if (mounted && sessions.length > 0) {
-        const sortedSessions = [...sessions].sort((a,b) => b.updatedAt - a.updatedAt);
-        if (JSON.stringify(sortedSessions) !== JSON.stringify(sessions)) { // Avoid unnecessary state updates
-            setSessions(sortedSessions);
-        }
-        // Ensure activeSessionId is valid, if not, set to the first one
-        if (!activeSessionId && sortedSessions.length > 0) {
-            setActiveSessionId(sortedSessions[0].id);
-        } else if (activeSessionId && !sortedSessions.some(s => s.id === activeSessionId) && sortedSessions.length > 0) {
-            setActiveSessionId(sortedSessions[0].id);
-        } else if (sortedSessions.length === 0 && activeSessionId !== null) {
-            // This case should be handled by deleteSession creating a new default session
-            // but as a safeguard:
-            const newSession = createNewSession(DEFAULT_SESSION_NAME);
-            setSessions([newSession]);
-            setActiveSessionId(newSession.id);
-        }
-    } else if (mounted && sessions.length === 0 && activeSessionId === null) {
-        // If no sessions exist after mount (e.g. localStorage was empty/corrupt and initial load failed to set one up)
-        const newSession = createNewSession(DEFAULT_SESSION_NAME);
-        setSessions([newSession]);
-        setActiveSessionId(newSession.id);
-    }
-  }, [sessions, mounted, activeSessionId]);
-
-
-  if (!mounted) {
-    return null; // Prevent rendering until client-side mount and localStorage access
-  }
-
   return (
     <SessionContext.Provider
       value={{
@@ -254,6 +371,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         addMessageToSession,
         updateMessageInSession,
         clearActiveSessionMessages,
+        isLoadingSessions,
       }}
     >
       {children}

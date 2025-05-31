@@ -1,3 +1,4 @@
+
 import type { Metadata } from 'next';
 import { GeistSans } from 'geist/font/sans';
 import { GeistMono } from 'geist/font/mono';
@@ -5,9 +6,8 @@ import './globals.css';
 import { ThemeProvider } from '@/components/providers/ThemeProvider';
 import { LanguageProvider } from '@/components/providers/LanguageProvider';
 import { SessionProvider } from '@/components/providers/SessionProvider';
+import { AuthProvider } from '@/components/providers/AuthProvider';
 import { Toaster } from '@/components/ui/toaster';
-
-// Removed the incorrect function calls for GeistSans and GeistMono
 
 export const metadata: Metadata = {
   title: 'ተመልካች',
@@ -24,10 +24,12 @@ export default function RootLayout({
       <body className={`antialiased`}>
         <ThemeProvider>
           <LanguageProvider>
-            <SessionProvider>
-              {children}
-              <Toaster />
-            </SessionProvider>
+            <AuthProvider>
+              <SessionProvider>
+                {children}
+                <Toaster />
+              </SessionProvider>
+            </AuthProvider>
           </LanguageProvider>
         </ThemeProvider>
       </body>
