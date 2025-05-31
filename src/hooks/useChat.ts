@@ -24,13 +24,13 @@ function generateChatTitle(responseText: string, maxLength: number = 30): string
   }
   
   const words = cleanedText.split(/\s+/);
-  let titleCandidate = words.slice(0, 5).join(' ');
+  let titleCandidate = words.slice(0, 3).join(' '); // Changed from 5 to 3 words
 
   if (titleCandidate.length > maxLength) {
-    // If the first 5 words are already too long, truncate and add ellipsis
+    // If the first 3 words are already too long, truncate and add ellipsis
     titleCandidate = titleCandidate.substring(0, maxLength - 3) + "...";
-  } else if (words.length > 5 && titleCandidate.length > 0) { 
-    // If there were more than 5 words originally, add ellipsis
+  } else if (words.length > 3 && titleCandidate.length > 0) { // Changed from 5 to 3 words
+    // If there were more than 3 words originally, add ellipsis
     titleCandidate += "...";
   }
   
