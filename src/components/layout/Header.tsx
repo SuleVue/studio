@@ -115,11 +115,13 @@ export function Header({ onMenuButtonClick, isSidebarOpen, showMenuButton = fals
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                          <Avatar>
-                          <AvatarImage 
-                            src={currentUser.photoURL || `https://avatar.vercel.sh/${currentUser.email || currentUser.uid}.png?text=${typeof initialsDisplay === 'string' ? initialsDisplay : ''}`}
-                            alt={currentUser.displayName || "User"} 
-                            data-ai-hint="person silhouette"
-                          />
+                          {currentUser.photoURL && (
+                            <AvatarImage 
+                              src={currentUser.photoURL}
+                              alt={currentUser.displayName || "User"} 
+                              data-ai-hint="person photo"
+                            />
+                          )}
                           <AvatarFallback>
                             {initialsDisplay}
                           </AvatarFallback>

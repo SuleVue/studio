@@ -199,9 +199,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         if (activeSessionId === sessionId) {
           const sortedSessions = updatedSessions.sort((a, b) => b.updatedAt - a.updatedAt);
           setActiveSessionId(sortedSessions.length > 0 ? sortedSessions[0].id : null);
-           if (sortedSessions.length === 0) {
-            createSessionInternal(DEFAULT_SESSION_NAME);
-          }
+           // Removed automatic creation of a new session if all are deleted.
+           // if (sortedSessions.length === 0) {
+           //   createSessionInternal(DEFAULT_SESSION_NAME);
+           // }
         }
         return updatedSessions;
       });
@@ -210,7 +211,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       console.error("Error deleting session:", error);
       toast({ title: "Error", description: "Failed to delete session.", variant: "destructive" });
     }
-  }, [currentUser, activeSessionId, getSessionsCollectionRef, toast, createSessionInternal]);
+  }, [currentUser, activeSessionId, getSessionsCollectionRef, toast]);
 
   const renameSession = useCallback(async (sessionId: string, newName: string) => {
     if (!currentUser) return;
