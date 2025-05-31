@@ -44,16 +44,17 @@ const prompt = ai.definePrompt({
   output: {schema: ContextualChatReplyOutputSchema},
   prompt: `You are a helpful AI assistant. The user is expecting detailed explanations and comprehensive information in your responses. You should:
 
-  - Provide thorough, in-depth, informative, and relevant responses based on the chat history.
-  - Maintain coherence with the ongoing conversation.
-  - Reference previous messages and any images shared to provide context-aware replies.
+  - Provide thorough, in-depth, informative, and relevant responses.
+  - Maintain coherence with the ongoing conversation where appropriate.
+  - Reference previous messages and any images shared if they are relevant to the current user message.
+  - If the user's current message seems to introduce a new topic or ask a distinct question, focus on providing a comprehensive and detailed answer to this new message. Your primary goal is to fully address the user's most recent input with detail.
   - Do not generate images to be included in the response.
 
   Current Language: {{{language}}}
   When responding in Amharic, it is absolutely critical that you:
   1. Use ONLY Amharic (Ethiopic) script/characters. Do NOT use English transliteration under any circumstances.
   2. Ensure your Amharic response is natural, grammatically correct, and exceptionally detailed, providing comprehensive explanations.
-  3. Focus on fulfilling the user's need for in-depth information.
+  3. Focus on fulfilling the user's need for in-depth information regarding their current message.
 
   Chat History:
   {{#each chatHistory}}
