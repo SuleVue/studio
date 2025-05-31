@@ -7,7 +7,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
@@ -22,11 +21,11 @@ export function HelpGuideDialogAm({ isOpen, onOpenChange }: HelpGuideDialogAmPro
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl max-h-[80vh] flex flex-col p-0">
-        <DialogHeader className="p-6 pb-4">
+        <DialogHeader className="p-6 pb-4 border-b">
           <DialogTitle className="text-2xl text-center">«ተመልካች» መተግበሪያን እንዴት መጠቀም እንደሚቻል</DialogTitle>
         </DialogHeader>
-        <ScrollArea className="flex-1 min-h-0 px-6"> {/* Added min-h-0 and moved horizontal padding here */}
-          <div className="space-y-4 text-base py-4"> {/* Removed px-2, use ScrollArea's padding */}
+        <ScrollArea className="flex-1 min-h-0 px-6">
+          <div className="w-full space-y-4 text-base py-4">
             <p>
               <strong>መግቢያ፦</strong><br />
               «ተመልካች» የእርስዎን ውይይቶች በቀላሉ ለማስተዳደር እና ከአርቴፊሻል ኢንተለጀንስ (AI) ጋር ለመወያየት የተዘጋጀ መተግበሪያ ነው። ምስሎችን መላክ እና በምስሉ ላይ ተመስርቶ ምላሾችን ማግኘት ይችላሉ።
@@ -68,7 +67,7 @@ export function HelpGuideDialogAm({ isOpen, onOpenChange }: HelpGuideDialogAmPro
             <p className="text-center mt-4">ይህ መመሪያ እንደረዳዎት ተስፋ እናደርጋለን!</p>
           </div>
         </ScrollArea>
-        <DialogFooter className="p-6 pt-4 border-t"> {/* Added border-t */}
+        <DialogFooter className="p-6 pt-4 border-t">
           <DialogClose asChild>
             <Button type="button">ዝጋ</Button>
           </DialogClose>
