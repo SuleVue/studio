@@ -32,9 +32,9 @@ export async function processUserTurn(input: ProcessUserTurnInput): Promise<Proc
     mediaUrl: msg.imageUrl,
   }));
 
-  // 2. Handle image analysis if user uploaded an image
+  // 2. Handle image analysis if user uploaded an image AND language is NOT Amharic
   // This analysis result is shown to the user as a separate message.
-  if (userImageDataUri) {
+  if (userImageDataUri && language !== 'Amharic') {
     try {
       const analysisResult = await analyzeImageObjects({ photoDataUri: userImageDataUri });
       const analysisText = `Detected objects in your image: ${analysisResult.objects.join(', ')}.`;
@@ -59,7 +59,7 @@ export async function processUserTurn(input: ProcessUserTurnInput): Promise<Proc
   const currentUserMessageForAIHistory: AIMessage = {
     role: 'user',
     content: userMessageText,
-    mediaUrl: userImageDataUri,
+    mediaUrl: userImageDataUri, // The AI will still receive the image regardless of language
   };
 
   // 4. Combine existing history with current user message for AI processing
