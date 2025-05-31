@@ -84,12 +84,14 @@ export function ChatSidebar() {
                     role="button"
                     tabIndex={0}
                     className={cn(
-                      "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
-                      "w-full justify-start h-10 px-3 group text-sidebar-foreground",
-                      "[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+                      "flex items-center w-full justify-start h-10 px-3 rounded-md group", // Core layout
+                      "text-sm font-medium text-sidebar-foreground", // Typography & interactivity
+                      "ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                      "disabled:pointer-events-none disabled:opacity-50",
+                      "[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0", // SVG styling
                       activeSessionId === session.id
                         ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                        : 'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+                        : 'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground' // Conditional styling
                     )}
                     onClick={() => switchSession(session.id)}
                     onKeyDown={(e: KeyboardEvent<HTMLDivElement>) => {
@@ -101,7 +103,7 @@ export function ChatSidebar() {
                   >
                     <MessageSquare className="mr-2 h-4 w-4 flex-shrink-0" />
                     <span className="truncate flex-1 text-left">{session.name}</span>
-                    <div className="ml-auto flex items-center space-x-1">
+                    <div className="ml-auto flex items-center space-x-1 flex-shrink-0">
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button
