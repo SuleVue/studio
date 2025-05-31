@@ -35,3 +35,27 @@ export interface User {
   displayName: string | null;
   country?: string;
 }
+
+export interface AuthContextType {
+  currentUser: User | null;
+  firebaseUser: import('firebase/auth').User | null;
+  loading: boolean;
+  error: string | null;
+  signUp: (data: SignUpData) => Promise<void>;
+  signIn: (data: SignInData) => Promise<void>;
+  signOut: () => Promise<void>;
+  updateProfileDisplayName: (newName: string) => Promise<boolean>;
+  updateUserPasswordInAuth: (newPassword: string) => Promise<boolean>;
+}
+
+export interface SignUpData {
+  fullName: string;
+  email: string;
+  passwordOne: string;
+  country: string;
+}
+
+export interface SignInData {
+  email: string;
+  passwordOne: string;
+}

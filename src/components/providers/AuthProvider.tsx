@@ -10,35 +10,14 @@ import {
   signInWithEmailAndPassword, 
   signOut as firebaseSignOut,
   updateProfile,
+  updatePassword,
   type User as FirebaseUser 
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
-import type { User } from '@/lib/types'; // Your custom User type
+import { doc, setDoc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import type { User, AuthContextType, SignUpData, SignInData } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 
-
-interface AuthContextType {
-  currentUser: User | null;
-  firebaseUser: FirebaseUser | null;
-  loading: boolean;
-  error: string | null;
-  signUp: (data: SignUpData) => Promise<void>;
-  signIn: (data: SignInData) => Promise<void>;
-  signOut: () => Promise<void>;
-}
-
-interface SignUpData {
-  fullName: string;
-  email: string;
-  passwordOne: string;
-  country: string;
-}
-
-interface SignInData {
-  email: string;
-  passwordOne: string;
-}
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -52,26 +31,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
-      setFirebaseUser(fbUser);
+      setFirebaseUser(fbUser); // Store the raw FirebaseUser
       if (fbUser) {
-        // Fetch additional user profile data from Firestore
         const userDocRef = doc(db, 'users', fbUser.uid);
         const userDocSnap = await getDoc(userDocRef);
         if (userDocSnap.exists()) {
           const userData = userDocSnap.data();
-          setCurrentUser({
+          const appUser: User = {
             uid: fbUser.uid,
             email: fbUser.email,
             displayName: fbUser.displayName || userData.fullName,
             country: userData.country,
-          });
+          };
+          setCurrentUser(appUser);
         } else {
-          // This case might happen if Firestore doc creation failed or user signed up elsewhere
-           setCurrentUser({
+           // Fallback if Firestore doc doesn't exist (e.g. only Auth record)
+           const appUser: User = {
             uid: fbUser.uid,
             email: fbUser.email,
             displayName: fbUser.displayName,
-          });
+          };
+          setCurrentUser(appUser);
         }
       } else {
         setCurrentUser(null);
@@ -88,7 +68,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const userCredential = await createUserWithEmailAndPassword(auth, email, passwordOne);
       await updateProfile(userCredential.user, { displayName: fullName });
       
-      // Store additional user info in Firestore
       const userDocRef = doc(db, 'users', userCredential.user.uid);
       await setDoc(userDocRef, {
         uid: userCredential.user.uid,
@@ -98,14 +77,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         createdAt: serverTimestamp(),
       });
       
-      setCurrentUser({
-        uid: userCredential.user.uid,
-        email: userCredential.user.email,
-        displayName: fullName,
-        country,
-      });
+      // No need to call setCurrentUser here, onAuthStateChanged will handle it
       toast({ title: "Success", description: "Account created successfully!" });
-      router.push('/'); // Redirect to home or dashboard
+      router.push('/'); 
     } catch (err: any) {
       setError(err.message);
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -119,8 +93,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setError(null);
     try {
       await signInWithEmailAndPassword(auth, email, passwordOne);
+      // onAuthStateChanged will handle setting user and redirecting
       toast({ title: "Success", description: "Signed in successfully!" });
-      router.push('/'); // Redirect to home or dashboard
+      router.push('/');
     } catch (err: any) {
       setError(err.message);
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -134,10 +109,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setError(null);
     try {
       await firebaseSignOut(auth);
-      setCurrentUser(null);
-      setFirebaseUser(null);
+      // onAuthStateChanged will set currentUser to null
       toast({ title: "Success", description: "Signed out successfully." });
-      router.push('/login'); // Redirect to login page
+      router.push('/login'); 
     } catch (err: any) {
       setError(err.message);
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -146,8 +120,73 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [toast, router]);
 
+  const updateProfileDisplayName = useCallback(async (newName: string): Promise<boolean> => {
+    if (!firebaseUser) {
+      toast({ title: "Error", description: "You must be logged in to update your profile.", variant: "destructive" });
+      return false;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      // Update Firebase Auth display name
+      await updateProfile(firebaseUser, { displayName: newName });
+
+      // Update Firestore 'fullName' field
+      const userDocRef = doc(db, 'users', firebaseUser.uid);
+      await updateDoc(userDocRef, { fullName: newName });
+
+      // Update local currentUser state
+      setCurrentUser(prevUser => prevUser ? { ...prevUser, displayName: newName } : null);
+      
+      toast({ title: "Success", description: "Your name has been updated." });
+      return true;
+    } catch (err: any) {
+      setError(err.message);
+      toast({ title: "Error", description: `Failed to update name: ${err.message}`, variant: "destructive" });
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, [firebaseUser, toast]);
+
+  const updateUserPasswordInAuth = useCallback(async (newPassword: string): Promise<boolean> => {
+    if (!firebaseUser) {
+      toast({ title: "Error", description: "You must be logged in to update your password.", variant: "destructive" });
+      return false;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      await updatePassword(firebaseUser, newPassword);
+      toast({ title: "Success", description: "Your password has been updated successfully." });
+      return true;
+    } catch (err: any) {
+      setError(err.message);
+      // Firebase often requires recent login for password changes.
+      let specificMessage = err.message;
+      if (err.code === 'auth/requires-recent-login') {
+        specificMessage = "This operation is sensitive and requires recent authentication. Please log out and log back in to update your password.";
+      }
+      toast({ title: "Error", description: `Failed to update password: ${specificMessage}`, variant: "destructive" });
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, [firebaseUser, toast]);
+
+
   return (
-    <AuthContext.Provider value={{ currentUser, firebaseUser, loading, error, signUp, signIn, signOut }}>
+    <AuthContext.Provider value={{ 
+      currentUser, 
+      firebaseUser, 
+      loading, 
+      error, 
+      signUp, 
+      signIn, 
+      signOut,
+      updateProfileDisplayName,
+      updateUserPasswordInAuth
+    }}>
       {!loading && children}
     </AuthContext.Provider>
   );

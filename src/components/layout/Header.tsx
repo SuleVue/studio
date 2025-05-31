@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from 'react';
-import { Moon, Sun, Languages as LanguagesIcon, HelpCircle, PanelLeftOpen, PanelRightOpen, LogOut, UserCircle2 } from "lucide-react";
+import { Moon, Sun, Languages as LanguagesIcon, HelpCircle, PanelLeftOpen, PanelRightOpen, LogOut, UserCircle2, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -99,8 +99,17 @@ export function Header({ onMenuButtonClick, isSidebarOpen, showMenuButton = fals
                 currentUser ? (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon">
-                        <UserCircle2 className="h-[1.2rem] w-[1.2rem]" />
+                      <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+                         <Avatar>
+                          <AvatarImage 
+                            src={currentUser.photoURL || `https://avatar.vercel.sh/${currentUser.email || currentUser.uid}.png`} // Simple placeholder
+                            alt={currentUser.displayName || "User"} 
+                            data-ai-hint="person silhouette"
+                          />
+                          <AvatarFallback>
+                            <UserCircle2 className="h-5 w-5" />
+                          </AvatarFallback>
+                        </Avatar>
                         <span className="sr-only">User Menu</span>
                       </Button>
                     </DropdownMenuTrigger>
@@ -116,6 +125,12 @@ export function Header({ onMenuButtonClick, isSidebarOpen, showMenuButton = fals
                         </div>
                       </DropdownMenuLabel>
                       <DropdownMenuSeparator />
+                      <DropdownMenuItem asChild>
+                        <Link href="/profile">
+                          <Settings className="mr-2 h-4 w-4" />
+                          <span>Profile</span>
+                        </Link>
+                      </DropdownMenuItem>
                       <DropdownMenuItem onClick={signOut}>
                         <LogOut className="mr-2 h-4 w-4" />
                         <span>Log out</span>
@@ -141,3 +156,18 @@ export function Header({ onMenuButtonClick, isSidebarOpen, showMenuButton = fals
     </>
   );
 }
+
+// Helper for Avatar if not already imported, else remove if Avatar from ui/avatar is used
+const Avatar = ({ children, className }: { children: React.ReactNode, className?: string }) => (
+  <div className={`relative flex h-8 w-8 shrink-0 overflow-hidden rounded-full ${className}`}>
+    {children}
+  </div>
+);
+const AvatarImage = ({ src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => (
+  <img src={src} alt={alt} className="aspect-square h-full w-full" {...props} />
+);
+const AvatarFallback = ({ children, className }: { children: React.ReactNode, className?: string}) => (
+  <div className={`flex h-full w-full items-center justify-center rounded-full bg-muted ${className}`}>
+    {children}
+  </div>
+);
