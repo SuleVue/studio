@@ -116,7 +116,7 @@ export function Header({ onMenuButtonClick, isSidebarOpen, showMenuButton = fals
                       <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                          <Avatar>
                           <AvatarImage 
-                            src={currentUser.photoURL || `https://avatar.vercel.sh/${currentUser.email || currentUser.uid}.png?text=${initialsDisplay}`}
+                            src={currentUser.photoURL || `https://avatar.vercel.sh/${currentUser.email || currentUser.uid}.png?text=${typeof initialsDisplay === 'string' ? initialsDisplay : ''}`}
                             alt={currentUser.displayName || "User"} 
                             data-ai-hint="person silhouette"
                           />
@@ -170,22 +170,3 @@ export function Header({ onMenuButtonClick, isSidebarOpen, showMenuButton = fals
     </>
   );
 }
-
-// Helper for Avatar if not already imported, else remove if Avatar from ui/avatar is used
-// const LocalAvatar = ({ children, className }: { children: React.ReactNode, className?: string }) => (
-//   <div className={`relative flex h-8 w-8 shrink-0 overflow-hidden rounded-full ${className}`}>
-//     {children}
-//   </div>
-// );
-// const LocalAvatarImage = ({ src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => (
-//   <img src={src} alt={alt} className="aspect-square h-full w-full" {...props} />
-// );
-// const LocalAvatarFallback = ({ children, className }: { children: React.ReactNode, className?: string}) => (
-//   <div className={`flex h-full w-full items-center justify-center rounded-full bg-muted ${className}`}>
-//     {children}
-//   </div>
-// );
-
-// Note: The local Avatar components were commented out as ShadCN's Avatar is imported and used.
-// If they were intended for a different purpose, they can be uncommented and renamed to avoid conflict.
-
