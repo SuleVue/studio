@@ -56,12 +56,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return collection(db, 'users', currentUser.uid, 'sessions');
   }, [currentUser]);
 
-  // Function to prepare messages for Firestore storage
   const prepareMessagesForStorage = (messages: ChatMessage[]): ChatMessage[] => {
     const processedMessages = messages.map(message => {
       const messageCopy = { ...message };
       if (messageCopy.imageUrl && messageCopy.imageUrl.startsWith('data:')) {
-        messageCopy.imageUrl = undefined; // Scrub Data URIs
+        messageCopy.imageUrl = undefined; 
       }
       if (messageCopy.imageUrls) {
         messageCopy.imageUrls = messageCopy.imageUrls
@@ -74,11 +73,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       if (messageCopy.content && messageCopy.content.length > MAX_MESSAGE_CONTENT_LENGTH_STORAGE) {
         messageCopy.content = messageCopy.content.substring(0, MAX_MESSAGE_CONTENT_LENGTH_STORAGE) + "... (truncated)";
       }
-      // Convert client-side number timestamp to Firestore Timestamp for new messages if needed
-      // For existing messages from Firestore, they will already be Timestamps or converted on fetch
-      if (typeof messageCopy.timestamp === 'number') {
-         // messageCopy.timestamp = Timestamp.fromMillis(messageCopy.timestamp);
-      }
       return messageCopy;
     });
   
@@ -87,7 +81,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       : processedMessages;
   };
   
-  // Fetch sessions from Firestore
   useEffect(() => {
     if (authLoading) {
       setIsLoadingSessions(true);
@@ -133,7 +126,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       
       setSessions(loadedSessions);
       if (loadedSessions.length > 0) {
-        // Try to keep active session or default to first
         const lastActiveId = localStorage.getItem(`tarikChatActiveSessionId_${currentUser.uid}`);
         if (lastActiveId && loadedSessions.some(s => s.id === lastActiveId)) {
           setActiveSessionId(lastActiveId);
@@ -150,9 +142,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setIsLoadingSessions(false);
     });
 
-  }, [currentUser, authLoading, toast]); // Removed getSessionsCollectionRef from deps as it depends on currentUser
+  }, [currentUser, authLoading, toast]); 
 
-  // Save active session ID to localStorage
   useEffect(() => {
     if (currentUser && activeSessionId) {
       localStorage.setItem(`tarikChatActiveSessionId_${currentUser.uid}`, activeSessionId);
@@ -178,9 +169,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       const createdSession: ChatSession = {
         ...newSessionData,
         id: docRef.id,
-        createdAt: Date.now(), // Approximate client time, Firestore will have server time
+        createdAt: Date.now(), 
         updatedAt: Date.now(),
-        messages: [], // Ensure messages is an empty array
+        messages: [], 
       };
       setSessions(prev => [createdSession, ...prev].sort((a,b) => b.updatedAt - a.updatedAt));
       setActiveSessionId(createdSession.id);
@@ -209,7 +200,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           const sortedSessions = updatedSessions.sort((a, b) => b.updatedAt - a.updatedAt);
           setActiveSessionId(sortedSessions.length > 0 ? sortedSessions[0].id : null);
            if (sortedSessions.length === 0) {
-            // If all sessions are deleted, create a new default one
             createSessionInternal(DEFAULT_SESSION_NAME);
           }
         }
@@ -220,7 +210,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       console.error("Error deleting session:", error);
       toast({ title: "Error", description: "Failed to delete session.", variant: "destructive" });
     }
-  }, [currentUser, activeSessionId, getSessionsCollectionRef, toast]);
+  }, [currentUser, activeSessionId, getSessionsCollectionRef, toast, createSessionInternal]);
 
   const renameSession = useCallback(async (sessionId: string, newName: string) => {
     if (!currentUser) return;
@@ -260,23 +250,37 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       const currentSession = prev[sessionIndex];
       let updatedMessages = [...currentSession.messages, message];
       
-      // Apply storage preparation rules to the full message list before saving to state and firestore
       const messagesForStorage = prepareMessagesForStorage(updatedMessages);
       
       const updatedSession = {
         ...currentSession,
-        messages: messagesForStorage, // Use the potentially truncated/scrubbed list for state
+        messages: messagesForStorage, 
         updatedAt: Date.now()
       };
 
-      // Update Firestore with the prepared messages (which might be further transformed for Firestore e.g. serverTimestamp)
-      // Note: `prepareMessagesForStorage` is client-side. We need to be careful with `serverTimestamp`
-      // For messages, timestamp is usually client-generated or a converted Firestore timestamp.
-      const firestoreMessages = messagesForStorage.map(m => ({
-        ...m,
-        // Ensure timestamp is a Firestore Timestamp if it's new, or keep as is if from Firestore
-        timestamp: m.timestamp instanceof Timestamp ? m.timestamp : (typeof m.timestamp === 'number' ? Timestamp.fromMillis(m.timestamp) : serverTimestamp())
-      }));
+      const firestoreMessages = messagesForStorage.map(msg => {
+        const { id, role, content, imageUrl, imageUrls, timestamp, isLoading } = msg;
+        const firestoreMessagePayload: Partial<ChatMessage> & { id: string, role: ChatMessage['role'], content: string, timestamp: any } = {
+          id,
+          role,
+          content,
+          timestamp: timestamp instanceof Timestamp 
+                     ? timestamp 
+                     : (typeof timestamp === 'number' 
+                        ? Timestamp.fromMillis(timestamp) 
+                        : serverTimestamp()),
+        };
+        if (imageUrl !== undefined) {
+          firestoreMessagePayload.imageUrl = imageUrl;
+        }
+        if (imageUrls !== undefined && imageUrls.length > 0) {
+          firestoreMessagePayload.imageUrls = imageUrls;
+        }
+        if (isLoading !== undefined) {
+          firestoreMessagePayload.isLoading = isLoading;
+        }
+        return firestoreMessagePayload;
+      });
 
       updateDoc(sessionDocRef, { 
         messages: firestoreMessages, 
@@ -310,10 +314,29 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         
         const messagesForStorage = prepareMessagesForStorage(newMessagesArray);
 
-        const firestoreMessages = messagesForStorage.map(m => ({
-            ...m,
-            timestamp: m.timestamp instanceof Timestamp ? m.timestamp : (typeof m.timestamp === 'number' ? Timestamp.fromMillis(m.timestamp) : serverTimestamp())
-        }));
+        const firestoreMessages = messagesForStorage.map(msg => {
+          const { id, role, content, imageUrl, imageUrls, timestamp, isLoading } = msg;
+          const firestoreMessagePayload: Partial<ChatMessage> & { id: string, role: ChatMessage['role'], content: string, timestamp: any } = {
+            id,
+            role,
+            content,
+            timestamp: timestamp instanceof Timestamp 
+                       ? timestamp 
+                       : (typeof timestamp === 'number' 
+                          ? Timestamp.fromMillis(timestamp) 
+                          : serverTimestamp()),
+          };
+          if (imageUrl !== undefined) {
+            firestoreMessagePayload.imageUrl = imageUrl;
+          }
+          if (imageUrls !== undefined && imageUrls.length > 0) {
+            firestoreMessagePayload.imageUrls = imageUrls;
+          }
+          if (isLoading !== undefined) {
+            firestoreMessagePayload.isLoading = isLoading;
+          }
+          return firestoreMessagePayload;
+        });
         
         updateDoc(sessionDocRef, { 
             messages: firestoreMessages, 
@@ -386,3 +409,4 @@ export function useSession() {
   }
   return context;
 }
+
