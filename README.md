@@ -1,4 +1,5 @@
-# Tarik Chat
+# Firebase Studio
 
-This is Amharic base AI Chatting App that accept images and conversation from the user and responses in prefered language (amharic or english).
+This is a NextJS starter in Firebase Studio.
+
 To get started, take a look at src/app/page.tsx.
