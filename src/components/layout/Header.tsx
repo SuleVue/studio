@@ -19,6 +19,7 @@ import { APP_NAME } from "@/lib/constants";
 import type { Language } from "@/lib/types";
 import { HelpGuideDialogAm } from './HelpGuideDialogAm';
 import Link from 'next/link';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 interface HeaderProps {
   onMenuButtonClick?: () => void;
@@ -31,6 +32,19 @@ export function Header({ onMenuButtonClick, isSidebarOpen, showMenuButton = fals
   const { language, setLanguage } = useLanguage();
   const { currentUser, signOut, loading: authLoading } = useAuth();
   const [isHelpDialogOpen, setIsHelpDialogOpen] = useState(false);
+
+  let initialsDisplay: React.ReactNode = <UserCircle2 className="h-5 w-5" />;
+  if (currentUser?.displayName) {
+    const nameParts = currentUser.displayName.trim().split(' ').filter(part => part.length > 0);
+    if (nameParts.length > 0) {
+      let calculatedInitials = nameParts[0][0];
+      if (nameParts.length > 1) {
+        calculatedInitials += nameParts[nameParts.length - 1][0];
+      }
+      initialsDisplay = calculatedInitials.toUpperCase();
+    }
+  }
+
 
   return (
     <>
@@ -102,12 +116,12 @@ export function Header({ onMenuButtonClick, isSidebarOpen, showMenuButton = fals
                       <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                          <Avatar>
                           <AvatarImage 
-                            src={currentUser.photoURL || `https://avatar.vercel.sh/${currentUser.email || currentUser.uid}.png`} // Simple placeholder
+                            src={currentUser.photoURL || `https://avatar.vercel.sh/${currentUser.email || currentUser.uid}.png?text=${initialsDisplay}`}
                             alt={currentUser.displayName || "User"} 
                             data-ai-hint="person silhouette"
                           />
                           <AvatarFallback>
-                            <UserCircle2 className="h-5 w-5" />
+                            {initialsDisplay}
                           </AvatarFallback>
                         </Avatar>
                         <span className="sr-only">User Menu</span>
@@ -158,16 +172,20 @@ export function Header({ onMenuButtonClick, isSidebarOpen, showMenuButton = fals
 }
 
 // Helper for Avatar if not already imported, else remove if Avatar from ui/avatar is used
-const Avatar = ({ children, className }: { children: React.ReactNode, className?: string }) => (
-  <div className={`relative flex h-8 w-8 shrink-0 overflow-hidden rounded-full ${className}`}>
-    {children}
-  </div>
-);
-const AvatarImage = ({ src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => (
-  <img src={src} alt={alt} className="aspect-square h-full w-full" {...props} />
-);
-const AvatarFallback = ({ children, className }: { children: React.ReactNode, className?: string}) => (
-  <div className={`flex h-full w-full items-center justify-center rounded-full bg-muted ${className}`}>
-    {children}
-  </div>
-);
+// const LocalAvatar = ({ children, className }: { children: React.ReactNode, className?: string }) => (
+//   <div className={`relative flex h-8 w-8 shrink-0 overflow-hidden rounded-full ${className}`}>
+//     {children}
+//   </div>
+// );
+// const LocalAvatarImage = ({ src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => (
+//   <img src={src} alt={alt} className="aspect-square h-full w-full" {...props} />
+// );
+// const LocalAvatarFallback = ({ children, className }: { children: React.ReactNode, className?: string}) => (
+//   <div className={`flex h-full w-full items-center justify-center rounded-full bg-muted ${className}`}>
+//     {children}
+//   </div>
+// );
+
+// Note: The local Avatar components were commented out as ShadCN's Avatar is imported and used.
+// If they were intended for a different purpose, they can be uncommented and renamed to avoid conflict.
+
